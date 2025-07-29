@@ -1,41 +1,37 @@
-import os
+import telebot
 from flask import Flask, request
-from telegram import Update, Bot, ReplyKeyboardMarkup
-from telegram.ext import Dispatcher, MessageHandler, Filters, CommandHandler
+import os
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = Bot(token=TOKEN)
+TOKEN = os.environ.get('BOT_TOKEN')  # Вставь токен в переменные окружения на Render
+bot = telebot.TeleBot(TOKEN)
+
+# === Кнопки ===
+from telebot import types
+
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add('📞 Позвонить брокеру', '📄 Документы', '📦 Типы грузов')
+    bot.send_message(message.chat.id, "Выбери нужный пункт:", reply_markup=markup)
+
+@bot.message_handler(func=lambda m: True)
+def answer(message):
+    if message.text == '📞 Позвонить брокеру':
+        bot.send_message(message.chat.id, "Hi, I’m calling about the load from Dallas to Chicago. Is it still available?")
+    elif message.text == '📄 Документы':
+        bot.send_message(message.chat.id, "Rate confirmation, BOL (Bill of Lading), POD (Proof of Delivery)...")
+    elif message.text == '📦 Типы грузов':
+        bot.send_message(message.chat.id, "Dry Van, Reefer, Flatbed, Step Deck...")
+    else:
+        bot.send_message(message.chat.id, "Выбери одну из кнопок ниже 👇")
+
+# === Flask сервер для Render ===
 app = Flask(__name__)
 
-@app.route('/', methods=['POST'])
+@app.route('/', methods=['GET', 'POST'])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dp.process_update(update)
-    return 'ok'
-
-def start(update, context):
-    keyboard = [
-        ['Фразы — Звонок'],
-        ['Фразы — Торг'],
-        ['Фразы — Документы']
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    update.message.reply_text("Выбери категорию:", reply_markup=reply_markup)
-
-def handle_text(update, context):
-    text = update.message.text
-    if text == 'Фразы — Звонок':
-        update.message.reply_text("📞 Call phrases:\n- Hi, I’m calling about the load...\n- Is it still available?")
-    elif text == 'Фразы — Торг':
-        update.message.reply_text("💬 Bargaining phrases:\n- Can you do $2400?\n- My driver wants more.")
-    elif text == 'Фразы — Документы':
-        update.message.reply_text("📄 Document phrases:\n- Please send the rate confirmation.\n- Our MC is 104104.")
-    else:
-        update.message.reply_text("Выбери одну из кнопок выше.")
-
-dp = Dispatcher(bot, None, workers=0, use_context=True)
-dp.add_handler(CommandHandler("start", start))
-dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+    return "Bot is alive", 200
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
