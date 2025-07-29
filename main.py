@@ -1,30 +1,41 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 import os
+from flask import Flask, request
+from telegram import Update, Bot, ReplyKeyboardMarkup
+from telegram.ext import Dispatcher, MessageHandler, Filters, CommandHandler
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TOKEN)
+app = Flask(__name__)
 
-# Фразы
-PHRASES = {
-    "👋 Начало разговора": "Hi, I'm calling about the load from Chicago to Atlanta. Is it still available?\n\nПривет, я звоню по поводу груза из Чикаго в Атланту. Он ещё доступен?",
-    "💰 Ставка и вес": "What's the rate and the weight?\n\nКакая ставка и вес груза?",
-    "🆔 MC и e-mail": "Our MC number is 104104. Please send the rate confirmation to our email.\n\nНаш MC номер 104104. Пожалуйста, отправьте подтверждение ставки на нашу почту.",
-    "✅ Завершение": "If you can do 2400, I'll book it now. Thank you!\n\nЕсли вы согласны на 2400, я бронирую. Спасибо!",
-}
+@app.route('/', methods=['POST'])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), bot)
+    dp.process_update(update)
+    return 'ok'
 
-# Кнопки
-BUTTONS = [[key] for key in PHRASES.keys()]
+def start(update, context):
+    keyboard = [
+        ['Фразы — Звонок'],
+        ['Фразы — Торг'],
+        ['Фразы — Документы']
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    update.message.reply_text("Выбери категорию:", reply_markup=reply_markup)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = ReplyKeyboardMarkup(BUTTONS, resize_keyboard=True)
-    await update.message.reply_text("Выберите фразу для звонка брокеру 👇", reply_markup=keyboard)
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def handle_text(update, context):
     text = update.message.text
-    response = PHRASES.get(text, "Пожалуйста, выберите фразу из кнопок ниже.")
-    await update.message.reply_text(response)
+    if text == 'Фразы — Звонок':
+        update.message.reply_text("📞 Call phrases:\n- Hi, I’m calling about the load...\n- Is it still available?")
+    elif text == 'Фразы — Торг':
+        update.message.reply_text("💬 Bargaining phrases:\n- Can you do $2400?\n- My driver wants more.")
+    elif text == 'Фразы — Документы':
+        update.message.reply_text("📄 Document phrases:\n- Please send the rate confirmation.\n- Our MC is 104104.")
+    else:
+        update.message.reply_text("Выбери одну из кнопок выше.")
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.run_polling()
+dp = Dispatcher(bot, None, workers=0, use_context=True)
+dp.add_handler(CommandHandler("start", start))
+dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
